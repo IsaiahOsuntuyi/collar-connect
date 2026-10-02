@@ -86,7 +86,7 @@ export const ResumePreviewModal = ({ open, onOpenChange, value, title = "Resume"
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[95vw] p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-4 py-3 border-b space-y-0">
           <div className="flex items-center justify-between gap-2 pr-8">
             <DialogTitle className="text-base truncate">{fileName}</DialogTitle>
@@ -118,7 +118,7 @@ export const ResumePreviewModal = ({ open, onOpenChange, value, title = "Resume"
               <p className="text-sm text-muted-foreground">{error}</p>
             </div>
           ) : src ? (
-            <object data={src} type="application/pdf" className="w-full h-[600px]">
+            <object data={src} type="application/pdf" className="h-[min(600px,calc(100dvh_-_8rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)))] w-full">
               {/* Fallback when the browser can't render the PDF inline */}
               <div className="h-[600px] flex items-center justify-center p-6">
                 <div className="w-full max-w-sm rounded-xl border bg-card p-6 text-center shadow-sm">

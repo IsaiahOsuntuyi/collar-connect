@@ -68,7 +68,7 @@ export const SideNav = () => {
   return (
     <aside
       aria-label="Primary"
-      className="hidden md:flex lg:hidden fixed left-0 top-14 bottom-0 z-40 w-56 flex-col border-r bg-card"
+      className="fixed bottom-0 left-0 top-[calc(3.5rem+env(safe-area-inset-top))] z-40 hidden w-56 flex-col border-r bg-card md:flex lg:hidden"
     >
       <nav className="flex-1 overflow-y-auto p-3">
         <ul className="space-y-1">{items.map(renderItem)}</ul>
