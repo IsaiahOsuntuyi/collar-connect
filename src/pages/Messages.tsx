@@ -206,7 +206,7 @@ const Messages = () => {
       <div className="container mx-auto grid grid-cols-1 gap-6 px-4 py-6 lg:grid-cols-12">
         {/* Left: Recent Chats */}
         <aside className={`lg:col-span-4 ${threadOpen ? "hidden lg:block" : "block"}`}>
-          <Card className="h-[calc(100vh-12rem)] md:h-[calc(100vh-8rem)]">
+          <Card className="h-[calc(100dvh-12rem)] md:h-[calc(100dvh-8rem)]">
             <CardHeader className="flex flex-row items-center justify-between border-b py-4">
               <h3 className="font-semibold">Recent Chats</h3>
               <Button size="sm" variant="outline" onClick={() => setNewChatOpen(true)}>
@@ -274,7 +274,7 @@ const Messages = () => {
 
         {/* Right: Chat Area */}
         <main className={`lg:col-span-8 ${threadOpen ? "block" : "hidden lg:block"}`}>
-          <Card className="flex h-[calc(100vh-12rem)] flex-col md:h-[calc(100vh-8rem)]">
+          <Card className="flex h-[calc(100dvh-12rem)] flex-col md:h-[calc(100dvh-8rem)]">
             {threadOpen ? (
               <>
                 <CardHeader className="flex flex-row items-center gap-2 border-b py-3">

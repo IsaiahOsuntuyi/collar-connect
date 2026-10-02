@@ -192,8 +192,8 @@ export const Navbar = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-card border-b">
-      <div className="container mx-auto px-2 sm:px-4">
+    <header className="sticky top-0 z-50 border-b bg-card pt-[env(safe-area-inset-top)]">
+      <div className="container mx-auto pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] sm:pl-[max(1rem,env(safe-area-inset-left))] sm:pr-[max(1rem,env(safe-area-inset-right))]">
         <div className="flex items-center justify-between h-14 gap-2">
           {/* Left: Logo + Search */}
           <div className="flex items-center gap-2 min-w-0 flex-1">

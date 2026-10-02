@@ -114,6 +114,8 @@
     min-height: 100%;
     overflow-x: clip;
     overflow-y: auto;
+    overscroll-behavior-y: none;
+    touch-action: pan-y;
   }
   body {
     width: 100%;
@@ -122,8 +124,8 @@
     position: relative;
     overflow-x: clip;
     overflow-y: visible;
-    overscroll-behavior-y: auto;
-    touch-action: auto;
+    overscroll-behavior-y: none;
+    touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
   }
   #root {
