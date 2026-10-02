@@ -118,7 +118,7 @@ export const ResumePreviewModal = ({ open, onOpenChange, value, title = "Resume"
               <p className="text-sm text-muted-foreground">{error}</p>
             </div>
           ) : src ? (
-            <object data={src} type="application/pdf" className="h-[min(600px,calc(100dvh-8rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-full">
+            <object data={src} type="application/pdf" className="h-[min(600px,calc(100dvh_-_8rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)))] w-full">
               {/* Fallback when the browser can't render the PDF inline */}
               <div className="h-[600px] flex items-center justify-center p-6">
                 <div className="w-full max-w-sm rounded-xl border bg-card p-6 text-center shadow-sm">

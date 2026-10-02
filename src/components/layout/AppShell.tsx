@@ -16,7 +16,7 @@ interface AppShellProps {
  */
 export const AppShell = ({ children }: AppShellProps) => {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen min-h-[100dvh]">
       <Navbar />
       <SideNav />
       <div className="md:pl-56 md:pr-4 lg:pl-0 lg:pr-0">
