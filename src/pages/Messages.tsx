@@ -266,7 +266,7 @@ const Messages = () => {
                 scrollMessagesToBottom();
               }}
               onBlur={() => setComposerFocused(false)}
-              className="min-h-[44px] max-h-32 resize-none text-base md:text-sm"
+              className="min-h-[44px] max-h-32 resize-none max-md:!text-base md:text-sm"
               rows={1}
             />
           </div>
