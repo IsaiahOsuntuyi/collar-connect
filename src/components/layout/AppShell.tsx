@@ -20,7 +20,7 @@ export const AppShell = ({ children }: AppShellProps) => {
       <Navbar />
       <SideNav />
       <div className="md:pl-56 md:pr-4 lg:pl-0 lg:pr-0">
-        <div className="pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</div>
+        <div data-shell-content className="pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</div>
       </div>
       <BottomNav />
     </div>
