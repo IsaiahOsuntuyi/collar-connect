@@ -15,7 +15,7 @@ import {
 import { formatDistanceToNow, format, isToday } from "date-fns";
 import { useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Send, ArrowLeft, Users, Plus, MessageCircle } from "lucide-react";
+import { Send, ArrowLeft, Users, Plus, MessageCircle, Mic, Square, X, Smile } from "lucide-react";
 import { LinkifyText } from "@/components/LinkifyText";
 import { useRecruiterGate } from "@/hooks/useRecruiterGate";
 import { RecruiterStatusNotice } from "@/components/RecruiterStatusNotice";
@@ -23,6 +23,9 @@ import { MentionTextarea } from "@/components/mentions/MentionTextarea";
 import { stripMentionMarkup } from "@/lib/mentions";
 import { NewChatModal } from "@/components/messages/NewChatModal";
 import { GroupMembersSheet } from "@/components/messages/GroupMembersSheet";
+import { EmojiReactionPicker } from "@/components/chat/EmojiReactionPicker";
+import { AudioMessagePlayer } from "@/components/chat/AudioMessagePlayer";
+import { useVoiceRecorder } from "@/hooks/useVoiceRecorder";
 
 const formatMessageTime = (dateStr: string) => {
   const date = new Date(dateStr);
@@ -39,398 +42,235 @@ const Messages = () => {
   const { user } = useAuth();
   const { data: conversations = [] } = useConversations();
   const sendMessage = useSendMessage();
-  const gate = useRecruiterGate();
-  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [pendingRecipientId, setPendingRecipientId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeConversationId = searchParams.get("id");
+
   const [messageText, setMessageText] = useState("");
-  const [newChatOpen, setNewChatOpen] = useState(false);
-  const [membersOpen, setMembersOpen] = useState(false);
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const [isGroupSheetOpen, setIsGroupSheetOpen] = useState(false);
+
+  const { isRecording, audioBlob, recordingTime, startRecording, stopRecording, resetRecording } = useVoiceRecorder();
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const activeConversation = useMemo<ConversationSummary | null>(
-    () => conversations.find((c) => c.id === activeConversationId) ?? null,
+  const activeConversation = useMemo(
+    () => conversations.find((c) => c.id === activeConversationId),
     [conversations, activeConversationId]
   );
 
-  const { data: messages = [], isLoading: messagesLoading } =
-    useConversationMessages(activeConversationId);
-
-  // Profile for a brand-new direct chat that has no conversation yet
-  const { data: pendingProfile } = useQuery({
-    queryKey: ["profile", pendingRecipientId],
-    enabled: !!pendingRecipientId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, full_name, avatar_url")
-        .eq("id", pendingRecipientId!)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  // Sync from URL params
-  useEffect(() => {
-    const cid = searchParams.get("conversationId");
-    if (cid) {
-      setActiveConversationId(cid);
-      setPendingRecipientId(null);
-      return;
-    }
-
-    const rid = searchParams.get("recipientId");
-    if (!rid) return;
-
-    const existing = conversations.find((c) => !c.is_group && c.counterpart_id === rid);
-    if (existing) {
-      setActiveConversationId(existing.id);
-      setPendingRecipientId(null);
-    } else {
-      setActiveConversationId(null);
-      setPendingRecipientId(rid);
-    }
-  }, [searchParams, conversations]);
+  const { data: messages = [] } = useConversationMessages(activeConversationId);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, pendingRecipientId]);
-
-  const openConversation = (conversationId: string) => {
-    setActiveConversationId(conversationId);
-    setPendingRecipientId(null);
-    setSearchParams((prev) => {
-      const params = new URLSearchParams(prev);
-      params.delete("recipientId");
-      params.set("conversationId", conversationId);
-      return params;
-    });
-  };
-
-  const openDirect = (recipientId: string) => {
-    const existing = conversations.find((c) => !c.is_group && c.counterpart_id === recipientId);
-    if (existing) {
-      openConversation(existing.id);
-      return;
-    }
-    setActiveConversationId(null);
-    setPendingRecipientId(recipientId);
-    setSearchParams((prev) => {
-      const params = new URLSearchParams(prev);
-      params.delete("conversationId");
-      params.set("recipientId", recipientId);
-      return params;
-    });
-  };
-
-  const closeThread = () => {
-    setActiveConversationId(null);
-    setPendingRecipientId(null);
-    setSearchParams((prev) => {
-      const params = new URLSearchParams(prev);
-      params.delete("conversationId");
-      params.delete("recipientId");
-      return params;
-    });
-  };
+  }, [messages]);
 
   const handleSend = async () => {
-    const content = messageText.trim();
-    if (!content) return;
-
-    if (activeConversation?.is_group) {
-      await sendMessage.mutateAsync({
-        conversationId: activeConversation.id,
-        content,
-        isGroup: true,
-      });
-      setMessageText("");
-      return;
-    }
-
-    const recipientId = activeConversation?.counterpart_id ?? pendingRecipientId;
-    if (!recipientId) return;
-
-    const result = await sendMessage.mutateAsync({ recipientId, content });
+    if (!messageText.trim() || !activeConversationId) return;
+    const textToSend = messageText;
     setMessageText("");
-    const conversationId = result?.[0]?.conversation_id;
-    if (conversationId && !activeConversationId) openConversation(conversationId);
+    await sendMessage.mutateAsync({
+      conversationId: activeConversationId,
+      content: textToSend,
+    });
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      void handleSend();
+  const handleSendVoiceNote = async () => {
+    if (!audioBlob || !activeConversationId || !user) return;
+    try {
+      const fileName = `${user.id}/${Date.now()}.webm`;
+      const { data, error } = await supabase.storage
+        .from("voice_notes")
+        .upload(fileName, audioBlob);
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("voice_notes")
+        .getPublicUrl(fileName);
+
+      await sendMessage.mutateAsync({
+        conversationId: activeConversationId,
+        content: "Voice note",
+        mediaUrl: publicUrl,
+        mediaType: "audio",
+      });
+      resetRecording();
+    } catch (err) {
+      console.error("Error sending voice note:", err);
     }
   };
-
-  const threadOpen = !!activeConversationId || !!pendingRecipientId;
-
-  const composer = (
-    <div className="border-t p-4">
-      {gate.restricted ? (
-        <RecruiterStatusNotice
-          status={gate.status}
-          action="message members"
-          className="border-0 shadow-none"
-        />
-      ) : (
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <MentionTextarea
-              placeholder="Type a message... Use @ to tag someone"
-              value={messageText}
-              onValueChange={setMessageText}
-              onKeyDown={handleKeyDown}
-              className="min-h-[44px] max-h-32 resize-none"
-              rows={1}
-            />
-          </div>
-          <Button
-            onClick={() => void handleSend()}
-            disabled={sendMessage.isPending || !messageText.trim()}
-            size="icon"
-            className="shrink-0"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
-    </div>
-  );
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto grid grid-cols-1 gap-6 px-4 py-6 lg:grid-cols-12">
-        {/* Left: Recent Chats */}
-        <aside className={`lg:col-span-4 ${threadOpen ? "hidden lg:block" : "block"}`}>
-          <Card className="h-[calc(100dvh-12rem)] md:h-[calc(100dvh-8rem)]">
-            <CardHeader className="flex flex-row items-center justify-between border-b py-4">
-              <h3 className="font-semibold">Recent Chats</h3>
-              <Button size="sm" variant="outline" onClick={() => setNewChatOpen(true)}>
-                <Plus className="mr-1 h-4 w-4" />
-                New
-              </Button>
-            </CardHeader>
-            <ScrollArea className="h-[calc(100%-4.5rem)]">
-              <CardContent className="p-2">
-                {conversations.length === 0 ? (
-                  <p className="p-4 text-center text-sm text-muted-foreground">
-                    No chats yet. Tap New to message a connection or start a group.
-                  </p>
-                ) : (
-                  conversations.map((c) => (
-                    <button
-                      key={c.id}
-                      className={`w-full rounded-lg text-left transition-colors ${
-                        activeConversationId === c.id ? "bg-primary/10" : "hover:bg-muted/50"
-                      }`}
-                      onClick={() => openConversation(c.id)}
-                    >
-                      <div className="flex items-center gap-3 p-3">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage
-                            src={
-                              (c.is_group ? c.avatar_url : c.counterpart_profile?.avatar_url) ||
-                              undefined
-                            }
-                          />
-                          <AvatarFallback className="bg-primary text-xs text-primary-foreground">
-                            {c.is_group ? (
-                              <Users className="h-4 w-4" />
-                            ) : (
-                              getInitials(c.counterpart_profile?.full_name)
-                            )}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {conversationDisplayName(c)}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {c.last_message?.content
-                              ? stripMentionMarkup(c.last_message.content)
-                              : c.is_group
-                                ? `${c.participants.length} members`
-                                : ""}
-                          </p>
-                        </div>
-                        <div className="shrink-0 text-xs text-muted-foreground">
-                          {c.last_message?.created_at &&
-                            formatDistanceToNow(new Date(c.last_message.created_at), {
-                              addSuffix: false,
-                            })}
-                        </div>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </CardContent>
-            </ScrollArea>
-          </Card>
-        </aside>
+    <div className="container max-w-6xl py-6 h-[calc(100vh-4rem)]">
+      <RecruiterStatusNotice />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-full border rounded-lg overflow-hidden bg-background">
+        <div className="md:col-span-1 border-r flex flex-col h-full">
+          <div className="p-4 border-b flex items-center justify-between">
+            <h1 className="text-xl font-bold flex items-center gap-2">
+              <MessageCircle className="h-5 w-5" />
+              Messages
+            </h1>
+            <Button size="icon" variant="ghost" onClick={() => setIsNewChatOpen(true)}>
+              <Plus className="h-5 w-5" />
+            </Button>
+          </div>
+          <ScrollArea className="flex-1">
+            <div className="divide-y">
+              {conversations.map((conv) => (
+                <button
+                  key={conv.id}
+                  onClick={() => setSearchParams({ id: conv.id })}
+                  className={`w-full p-4 text-left hover:bg-muted/50 transition-colors flex items-center gap-3 ${
+                    activeConversationId === conv.id ? "bg-muted" : ""
+                  }`}
+                >
+                  <Avatar>
+                    <AvatarImage src={conv.avatar_url || ""} />
+                    <AvatarFallback>{getInitials(conversationDisplayName(conv, user?.id))}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium truncate">{conversationDisplayName(conv, user?.id)}</p>
+                      {conv.last_message_at && (
+                        <span className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(conv.last_message_at), { addSuffix: true })}
+                        </span>
+                      )}
+                    </div>
+                    {conv.last_message && (
+                      <p className="text-sm text-muted-foreground truncate">{conv.last_message}</p>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
 
-        {/* Right: Chat Area */}
-        <main className={`lg:col-span-8 ${threadOpen ? "block" : "hidden lg:block"}`}>
-          <Card className="flex h-[calc(100dvh-12rem)] flex-col md:h-[calc(100dvh-8rem)]">
-            {threadOpen ? (
-              <>
-                <CardHeader className="flex flex-row items-center gap-2 border-b py-3">
+        <div className="md:col-span-2 flex flex-col h-full">
+          {activeConversation ? (
+            <>
+              <div className="p-4 border-b flex items-center justify-between">
+                <div className="flex items-center gap-3">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="-ml-2 h-9 w-9 lg:hidden"
-                    onClick={closeThread}
-                    aria-label="Back to conversations"
+                    className="md:hidden"
+                    onClick={() => setSearchParams({})}
                   >
                     <ArrowLeft className="h-5 w-5" />
                   </Button>
-
-                  {activeConversation?.is_group ? (
-                    <>
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={activeConversation.avatar_url || undefined} />
-                        <AvatarFallback className="bg-primary text-primary-foreground">
-                          <Users className="h-4 w-4" />
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold">
-                          {activeConversation.title || "Group chat"}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {activeConversation.participants.length} members
-                        </p>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={() => setMembersOpen(true)}>
-                        Members
-                      </Button>
-                    </>
-                  ) : (
-                    (() => {
-                      const otherId =
-                        activeConversation?.counterpart_id ?? pendingRecipientId ?? "";
-                      const profile =
-                        activeConversation?.counterpart_profile ?? pendingProfile ?? null;
-                      return (
-                        <>
-                          <Link to={`/profile?userId=${otherId}`}>
-                            <Avatar className="h-10 w-10">
-                              <AvatarImage src={profile?.avatar_url || undefined} />
-                              <AvatarFallback className="bg-primary text-sm text-primary-foreground">
-                                {getInitials(profile?.full_name)}
-                              </AvatarFallback>
-                            </Avatar>
-                          </Link>
-                          <Link
-                            to={`/profile?userId=${otherId}`}
-                            className="truncate font-semibold hover:underline"
-                          >
-                            {profile?.full_name || "Loading..."}
-                          </Link>
-                        </>
-                      );
-                    })()
-                  )}
-                </CardHeader>
-
-                <ScrollArea className="flex-1 p-4">
-                  {messagesLoading && activeConversationId ? (
-                    <p className="py-8 text-center text-muted-foreground">Loading messages...</p>
-                  ) : messages.length === 0 ? (
-                    <p className="py-8 text-center text-muted-foreground">
-                      No messages yet. Send a message to start the conversation!
-                    </p>
-                  ) : (
-                    <div className="space-y-4">
-                      {messages.map((msg) => {
-                        const isOwn = msg.sender_id === user?.id;
-                        const showSender = !!activeConversation?.is_group && !isOwn;
-                        return (
-                          <div
-                            key={msg.id}
-                            className={`flex items-end gap-2 ${isOwn ? "justify-end" : "justify-start"}`}
-                          >
-                            {showSender && (
-                              <Link to={`/profile?userId=${msg.sender_id}`} className="shrink-0">
-                                <Avatar className="h-8 w-8">
-                                  <AvatarImage src={msg.sender_profile?.avatar_url || undefined} />
-                                  <AvatarFallback className="bg-primary text-[10px] text-primary-foreground">
-                                    {getInitials(msg.sender_profile?.full_name)}
-                                  </AvatarFallback>
-                                </Avatar>
-                              </Link>
-                            )}
-                            <div
-                              className={`max-w-[70%] rounded-lg px-4 py-2 ${
-                                isOwn
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-muted text-foreground"
-                              }`}
-                            >
-                              {showSender && (
-                                <p className="mb-0.5 text-xs font-medium text-muted-foreground">
-                                  {msg.sender_profile?.full_name || "Unknown"}
-                                </p>
-                              )}
-                              <p className="whitespace-pre-wrap break-words text-sm">
-                                <LinkifyText>{msg.content}</LinkifyText>
-                              </p>
-                              <p
-                                className={`mt-1 text-xs ${
-                                  isOwn ? "text-primary-foreground/70" : "text-muted-foreground"
-                                }`}
-                              >
-                                {formatMessageTime(msg.created_at)}
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      <div ref={messagesEndRef} />
-                    </div>
-                  )}
-                </ScrollArea>
-
-                {composer}
-              </>
-            ) : (
-              <div className="flex flex-1 items-center justify-center p-6">
-                <div className="flex flex-col items-center gap-4 text-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-                    <MessageCircle className="h-7 w-7 text-primary" />
+                  <Avatar>
+                    <AvatarImage src={activeConversation.avatar_url || ""} />
+                    <AvatarFallback>{getInitials(conversationDisplayName(activeConversation, user?.id))}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h2 className="font-semibold">{conversationDisplayName(activeConversation, user?.id)}</h2>
+                    {activeConversation.is_group && (
+                      <p className="text-xs text-muted-foreground">Group Chat</p>
+                    )}
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-lg font-medium">No conversations open</p>
-                    <p className="text-sm text-muted-foreground">
-                      Message a connection one-on-one, or start a group chat.
-                    </p>
-                  </div>
-                  <Button className="gap-2" onClick={() => setNewChatOpen(true)}>
-                    <Plus className="h-4 w-4" /> Start a Chat
-                  </Button>
                 </div>
+                {activeConversation.is_group && (
+                  <Button variant="ghost" size="icon" onClick={() => setIsGroupSheetOpen(true)}>
+                    <Users className="h-5 w-5" />
+                  </Button>
+                )}
               </div>
-            )}
-          </Card>
-        </main>
+
+              <ScrollArea className="flex-1 p-4">
+                <div className="space-y-4">
+                  {messages.map((msg) => {
+                    const isSender = msg.sender_id === user?.id;
+                    return (
+                      <div
+                        key={msg.id}
+                        className={`flex flex-col ${isSender ? "items-end" : "items-start"}`}
+                      >
+                        <div
+                          className={`max-w-[70%] rounded-lg p-3 relative group ${
+                            isSender
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted"
+                          }`}
+                        >
+                          {msg.media_type === "audio" || msg.media_type === "voice" ? (
+                            <AudioMessagePlayer audioUrl={msg.media_url || ""} />
+                          ) : (
+                            <p className="text-sm whitespace-pre-wrap">
+                              <LinkifyText text={stripMentionMarkup(msg.content)} />
+                            </p>
+                          )}
+                          <span className="text-[10px] opacity-70 mt-1 block text-right">
+                            {formatMessageTime(msg.created_at)}
+                          </span>
+                          <div className="mt-1 flex items-center gap-1">
+                            <EmojiReactionPicker />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
+                </div>
+              </ScrollArea>
+
+              <div className="p-4 border-t">
+                {isRecording ? (
+                  <div className="flex items-center gap-3 bg-muted p-2 rounded-md">
+                    <span className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+                    <span className="text-sm font-medium">Recording: {recordingTime}s</span>
+                    <div className="ml-auto flex items-center gap-2">
+                      <Button variant="ghost" size="sm" onClick={resetRecording}>
+                        <X className="h-4 w-4 mr-1" /> Cancel
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={stopRecording}>
+                        <Square className="h-4 w-4 mr-1" /> Stop
+                      </Button>
+                      <Button size="sm" onClick={handleSendVoiceNote}>
+                        <Send className="h-4 w-4 mr-1" /> Send Voice
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <MentionTextarea
+                      value={messageText}
+                      onChange={(e) => setMessageText(e.target.value)}
+                      placeholder="Type a message..."
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
+                      className="min-h-[40px] max-h-[120px]"
+                    />
+                    <Button variant="outline" size="icon" onClick={startRecording} title="Record Voice Note">
+                      <Mic className="h-4 w-4" />
+                    </Button>
+                    <Button onClick={handleSend} size="icon">
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-muted-foreground">
+              Select a conversation to start messaging
+            </div>
+          )}
+        </div>
       </div>
 
-      <NewChatModal
-        open={newChatOpen}
-        onOpenChange={setNewChatOpen}
-        onStartDirect={openDirect}
-        onGroupCreated={openConversation}
-      />
-
-      {activeConversation?.is_group && (
+      <NewChatModal open={isNewChatOpen} onOpenChange={setIsNewChatOpen} />
+      {activeConversation && (
         <GroupMembersSheet
-          open={membersOpen}
-          onOpenChange={setMembersOpen}
-          conversation={activeConversation}
-          onLeft={closeThread}
+          open={isGroupSheetOpen}
+          onOpenChange={setIsGroupSheetOpen}
+          conversationId={activeConversation.id}
         />
       )}
     </div>
