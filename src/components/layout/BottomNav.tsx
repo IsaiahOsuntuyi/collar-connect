@@ -15,6 +15,7 @@ export const BottomNav = () => {
   return (
     <nav
       aria-label="Primary"
+      data-mobile-bottom-nav
       className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] backdrop-blur supports-[backdrop-filter]:bg-card/80 md:hidden"
     >
       <ul className="grid grid-cols-5">
