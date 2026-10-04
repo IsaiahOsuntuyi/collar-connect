@@ -47,7 +47,6 @@ const Messages = () => {
   const [messageText, setMessageText] = useState("");
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
-  const chatCardRef = useRef<HTMLDivElement>(null);
   const chatColumnRef = useRef<HTMLElement>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
   const [composerFocused, setComposerFocused] = useState(false);
@@ -55,6 +54,7 @@ const Messages = () => {
     top: number; left: number; width: number; height: number;
   } | null>(null);
   const restingViewportHeight = useRef(0);
+  const restingViewportWidth = useRef(0);
   const scrollFrame = useRef<number | null>(null);
 
   const scrollMessagesToBottom = () => {
@@ -115,6 +115,7 @@ const Messages = () => {
 
   useEffect(() => {
     restingViewportHeight.current = window.innerHeight;
+    restingViewportWidth.current = window.innerWidth;
     return () => {
       if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
       delete document.documentElement.dataset.chatKeyboardOpen;
@@ -133,6 +134,10 @@ const Messages = () => {
     }
 
     const updateFrame = () => {
+      if (restingViewportWidth.current !== window.innerWidth) {
+        restingViewportWidth.current = window.innerWidth;
+        restingViewportHeight.current = window.innerHeight;
+      }
       if (window.innerWidth >= 768) {
         delete document.documentElement.dataset.chatKeyboardOpen;
         setKeyboardFrame(null);
@@ -352,7 +357,6 @@ const Messages = () => {
         {/* Right: Chat Area */}
         <main ref={chatColumnRef} className={`lg:col-span-8 ${threadOpen ? "block" : "hidden lg:block"}`}>
           <Card
-            ref={chatCardRef}
             className={`flex h-[calc(100dvh-12rem)] flex-col md:h-[calc(100dvh-8rem)] ${keyboardFrame ? "z-40 overflow-hidden" : ""}`}
             style={keyboardFrame ? { position: "fixed", top: keyboardFrame.top, left: keyboardFrame.left, width: keyboardFrame.width, height: keyboardFrame.height } : undefined}
           >
