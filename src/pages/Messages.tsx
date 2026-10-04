@@ -157,7 +157,7 @@ const Messages = () => {
       const column = chatColumnRef.current?.getBoundingClientRect();
       const navbar = document.querySelector("header.sticky")?.getBoundingClientRect();
       if (!column) return;
-      const top = Math.max(visual?.offsetTop ?? 0, navbar?.bottom ?? 0);
+      const top = Math.max(visual?.offsetTop ?? 0, navbar?.bottom ?? 0, column.top);
       const bottom = (visual?.offsetTop ?? 0) + visibleHeight;
       document.documentElement.dataset.chatKeyboardOpen = "true";
       setKeyboardFrame({ top, left: column.left, width: column.width, height: Math.max(0, bottom - top) });
