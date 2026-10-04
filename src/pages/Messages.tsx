@@ -47,7 +47,24 @@ const Messages = () => {
   const [messageText, setMessageText] = useState("");
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatColumnRef = useRef<HTMLElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
+  const [composerFocused, setComposerFocused] = useState(false);
+  const [keyboardFrame, setKeyboardFrame] = useState<{
+    top: number; left: number; width: number; height: number;
+  } | null>(null);
+  const restingViewportHeight = useRef(0);
+  const restingViewportWidth = useRef(0);
+  const scrollFrame = useRef<number | null>(null);
+
+  const scrollMessagesToBottom = () => {
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+    scrollFrame.current = requestAnimationFrame(() => {
+      const viewport = messageListRef.current?.querySelector<HTMLElement>("[data-radix-scroll-area-viewport]");
+      if (viewport) viewport.scrollTop = viewport.scrollHeight;
+      scrollFrame.current = null;
+    });
+  };
 
   const activeConversation = useMemo<ConversationSummary | null>(
     () => conversations.find((c) => c.id === activeConversationId) ?? null,
@@ -94,9 +111,70 @@ const Messages = () => {
     }
   }, [searchParams, conversations]);
 
+  const threadOpen = !!activeConversationId || !!pendingRecipientId;
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, pendingRecipientId]);
+    restingViewportHeight.current = window.innerHeight;
+    restingViewportWidth.current = window.innerWidth;
+    return () => {
+      if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+      delete document.documentElement.dataset.chatKeyboardOpen;
+    };
+  }, []);
+
+  useEffect(() => {
+    scrollMessagesToBottom();
+  }, [messages, activeConversationId, pendingRecipientId]);
+
+  useEffect(() => {
+    if (!composerFocused || !threadOpen) {
+      delete document.documentElement.dataset.chatKeyboardOpen;
+      setKeyboardFrame(null);
+      return;
+    }
+
+    const updateFrame = () => {
+      if (restingViewportWidth.current !== window.innerWidth) {
+        restingViewportWidth.current = window.innerWidth;
+        restingViewportHeight.current = window.innerHeight;
+      }
+      if (window.innerWidth >= 768) {
+        delete document.documentElement.dataset.chatKeyboardOpen;
+        setKeyboardFrame(null);
+        return;
+      }
+      const visual = window.visualViewport;
+      const visibleHeight = visual?.height ?? window.innerHeight;
+      // Toolbar changes are small; require an actual keyboard-sized reduction.
+      const keyboardOpen = restingViewportHeight.current - visibleHeight > 120 && (visual?.scale ?? 1) <= 1.05;
+      if (!keyboardOpen) {
+        if (window.innerHeight > restingViewportHeight.current) restingViewportHeight.current = window.innerHeight;
+        delete document.documentElement.dataset.chatKeyboardOpen;
+        setKeyboardFrame(null);
+        return;
+      }
+
+      const column = chatColumnRef.current?.getBoundingClientRect();
+      const navbar = document.querySelector("header.sticky")?.getBoundingClientRect();
+      if (!column) return;
+      const top = Math.max(visual?.offsetTop ?? 0, navbar?.bottom ?? 0, column.top);
+      const bottom = (visual?.offsetTop ?? 0) + visibleHeight;
+      document.documentElement.dataset.chatKeyboardOpen = "true";
+      setKeyboardFrame({ top, left: column.left, width: column.width, height: Math.max(0, bottom - top) });
+      scrollMessagesToBottom();
+    };
+
+    updateFrame();
+    window.visualViewport?.addEventListener("resize", updateFrame);
+    window.visualViewport?.addEventListener("scroll", updateFrame);
+    window.addEventListener("resize", updateFrame);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", updateFrame);
+      window.visualViewport?.removeEventListener("scroll", updateFrame);
+      window.removeEventListener("resize", updateFrame);
+      delete document.documentElement.dataset.chatKeyboardOpen;
+    };
+  }, [composerFocused, threadOpen]);
 
   const openConversation = (conversationId: string) => {
     setActiveConversationId(conversationId);
@@ -126,6 +204,7 @@ const Messages = () => {
   };
 
   const closeThread = () => {
+    setComposerFocused(false);
     setActiveConversationId(null);
     setPendingRecipientId(null);
     setSearchParams((prev) => {
@@ -166,10 +245,8 @@ const Messages = () => {
     }
   };
 
-  const threadOpen = !!activeConversationId || !!pendingRecipientId;
-
   const composer = (
-    <div className="border-t p-4">
+    <div className={`shrink-0 border-t px-4 pt-4 ${keyboardFrame ? "pb-2" : "pb-[max(1rem,env(safe-area-inset-bottom))]"} md:pb-4`}>
       {gate.restricted ? (
         <RecruiterStatusNotice
           status={gate.status}
@@ -184,7 +261,12 @@ const Messages = () => {
               value={messageText}
               onValueChange={setMessageText}
               onKeyDown={handleKeyDown}
-              className="min-h-[44px] max-h-32 resize-none"
+              onFocus={() => {
+                setComposerFocused(true);
+                scrollMessagesToBottom();
+              }}
+              onBlur={() => setComposerFocused(false)}
+              className="min-h-[44px] max-h-32 resize-none max-md:!text-base md:text-sm"
               rows={1}
             />
           </div>
@@ -273,8 +355,11 @@ const Messages = () => {
         </aside>
 
         {/* Right: Chat Area */}
-        <main className={`lg:col-span-8 ${threadOpen ? "block" : "hidden lg:block"}`}>
-          <Card className="flex h-[calc(100dvh-12rem)] flex-col md:h-[calc(100dvh-8rem)]">
+        <main ref={chatColumnRef} className={`lg:col-span-8 ${threadOpen ? "block" : "hidden lg:block"}`}>
+          <Card
+            className={`flex h-[calc(100dvh-12rem)] flex-col md:h-[calc(100dvh-8rem)] ${keyboardFrame ? "z-40 overflow-hidden" : ""}`}
+            style={keyboardFrame ? { position: "fixed", top: keyboardFrame.top, left: keyboardFrame.left, width: keyboardFrame.width, height: keyboardFrame.height } : undefined}
+          >
             {threadOpen ? (
               <>
                 <CardHeader className="flex flex-row items-center gap-2 border-b py-3">
@@ -336,7 +421,7 @@ const Messages = () => {
                   )}
                 </CardHeader>
 
-                <ScrollArea className="flex-1 p-4">
+                <ScrollArea ref={messageListRef} className="min-h-0 flex-1 p-4">
                   {messagesLoading && activeConversationId ? (
                     <p className="py-8 text-center text-muted-foreground">Loading messages...</p>
                   ) : messages.length === 0 ? (
@@ -389,7 +474,6 @@ const Messages = () => {
                           </div>
                         );
                       })}
-                      <div ref={messagesEndRef} />
                     </div>
                   )}
                 </ScrollArea>

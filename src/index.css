@@ -154,6 +154,17 @@ All colors MUST be HSL.
     input, textarea, select {
       font-size: 16px !important;
     }
+    html[data-chat-keyboard-open="true"] [data-mobile-bottom-nav] {
+      display: none;
+    }
+    html[data-chat-keyboard-open="true"] [data-shell-content] {
+      padding-bottom: 0;
+    }
+    html[data-chat-keyboard-open="true"],
+    html[data-chat-keyboard-open="true"] body {
+      overflow-y: hidden;
+      overscroll-behavior-y: none;
+    }
   }
 }
 
